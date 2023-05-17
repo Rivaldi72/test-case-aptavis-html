@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Klasemen Sepak Bola</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Klasemen Sepak Bola</h1>
+    <button id="input-data">Input Data Klub</button>
+    <button id="input-skor">Input Skor Pertandingan</button>
+    <button id="view-klasemen">View Klasemen</button>
+
+    <div id="content"></div>
+
+    <script>
+        $(document).ready(function() {
+            // Mengecek apakah local storage 'clubs' sudah ada, jika tidak maka diinisialisasi dengan array kosong
+            if (!localStorage.getItem('clubs')) {
+                localStorage.setItem('clubs', JSON.stringify([]));
+            }
+
+            // Tombol menu Input Data Klub
+            function showInputDataForm() {
+                var form = `
+                    <h2>Input Data Klub</h2>
+                    <form id="input-data-form">
+                        <label for="nama">Nama Klub:</label>
+                        <input type="text" id="nama" required><br><br>
+                        <label for="kota">Kota Klub:</label>
+                        <input type="text" id="kota" required><br><br>
+                        <input type="submit" value="Simpan">
+                    </form>
+                `;
+                $('#content').html(form);
+
+                // Menyimpan data klub
+                $('#input-data-form').submit(function(e) {
+                    e.preventDefault();
+                    var nama = $('#nama').val();
+                    var kota = $('#kota').val();
+
+                    if (isClubExists(nama)) {
+                        alert('Klub dengan nama tersebut sudah ada.');
+                        return;
+                    }
+
+                    var club = { nama: nama, kota: kota, main: 0, menang: 0, seri: 0, kalah: 0, golMenang: 0, golKalah: 0, point: 0, matches: [] };
+                    saveClub(club);
+                    clearInputClub();
+                    alert('Data klub berhasil disimpan.');
+                });
+            }
+
+            // Cek apakah klub sudah ada
+            function isClubExists(nama) {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+                for (var i = 0; i < clubs.length; i++) {
+                    if (clubs[i].nama.toLowerCase() === nama.toLowerCase()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Menyimpan data klub ke local storage
+            function saveClub(club) {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+                clubs.push(club);
+                localStorage.setItem('clubs', JSON.stringify(clubs));
+            }
+
+            // Tombol menu Input Skor Pertandingan
+            function showInputSkorForm() {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+
+                if (clubs.length < 2) {
+                    alert('Minimal harus ada 2 klub terdaftar untuk input skor pertandingan.');
+                    return;
+                }
+
+                var form = `
+                    <h2>Input Skor Pertandingan</h2>
+                    <form id="input-skor-form">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Klub 1</th>
+                                    <th>Klub 2</th>
+                                    <th>Skor 1</th>
+                                    <th>Skor 2</th>
+                                </tr>
+                            </thead>
+                            <tbody id="input-skor-body">
+                            </tbody>
+                        </table>
+                        <button id="add-match">Tambah Pertandingan</button><br><br>
+                        <input type="submit" value="Simpan">
+                    </form>
+                `;
+                $('#content').html(form);
+
+                // Menambah input pertandingan
+                $('#add-match').click(function(e) {
+                    e.preventDefault();
+                    addMatchInput();
+                });
+
+                // Menyimpan data pertandingan
+                $('#input-skor-form').submit(function(e) {
+                    e.preventDefault();
+
+                    var matches = [];
+                    $('#input-skor-body tr').each(function() {
+                        var klub1 = $(this).find('.klub1').val();
+                        var klub2 = $(this).find('.klub2').val();
+                        var skor1 = parseInt($(this).find('.skor1').val());
+                        var skor2 = parseInt($(this).find('.skor2').val());
+
+                        if (isNaN(skor1) || isNaN(skor2)) {
+                            alert('Skor pertandingan harus berupa angka.');
+                            return;
+                        }
+
+                        if (skor1 < 0 || skor2 < 0) {
+                            alert('Skor pertandingan tidak boleh negatif.');
+                            return;
+                        }
+
+                        if (klub1 === klub2) {
+                            alert('Klub yang bertanding tidak boleh sama.');
+                            return;
+                        }
+
+                        if (isMatchExists(klub1, klub2)) {
+                            alert('Pertandingan antara klub tersebut sudah ada.');
+                            return;
+                        }
+
+                        matches.push({ klub1: klub1, klub2: klub2, skor1: skor1, skor2: skor2 });
+                    });
+
+                    saveMatches(matches);
+                    alert('Data pertandingan berhasil disimpan.');
+                });
+
+                // Menambah input pertandingan awal
+                addMatchInput();
+            }
+
+            // Menambah input pertandingan
+            function addMatchInput() {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+
+                var row = `
+                    <tr>
+                        <td>
+                            <select class="klub1" required>
+                                <option value="" disabled selected>Pilih Klub 1</option>
+                                ${generateClubOptions()}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="klub2" required>
+                                <option value="" disabled selected>Pilih Klub 2</option>
+                                ${generateClubOptions()}
+                            </select>
+                        </td>
+                        <td><input type="number" class="skor1" min="0" required></td>
+                        <td><input type="number" class="skor2" min="0" required></td>
+                    </tr>
+                `;
+                $('#input-skor-body').append(row);
+            }
+
+            // Mengecek apakah pertandingan sudah ada
+            function isMatchExists(klub1, klub2) {
+                var savedMatches = JSON.parse(localStorage.getItem('matches')) || [];
+                for (var i = 0; i < savedMatches.length; i++) {
+                    var match = savedMatches[i];
+                    if ((match.klub1 === klub1 && match.klub2 === klub2) || (match.klub1 === klub2 && match.klub2 === klub1)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Menyimpan data pertandingan ke local storage
+            function saveMatches(matches) {
+                var savedMatches = JSON.parse(localStorage.getItem('matches')) || [];
+                savedMatches = savedMatches.concat(matches);
+                localStorage.setItem('matches', JSON.stringify(savedMatches));
+
+                // Update klasemen setelah menyimpan pertandingan
+                updateKlasemen();
+                clearInputSkor()
+            }
+
+            // Tombol menu View Klasemen
+            function showKlasemen() {
+                var klasemen = getKlasemenData();
+
+                var table = `
+                    <h2>Tampilan Klasemen</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Klub</th>
+                                <th>Ma</th>
+                                <th>Me</th>
+                                <th>S</th>
+                                <th>K</th>
+                                <th>GM</th>
+                                <th>GK</th>
+                                <th>Point</th>
+                            </tr>
+                        </thead>
+                        <tbody id="klasemen-body">
+                        </tbody>
+                    </table>
+                `;
+                $('#content').html(table);
+
+                // Menampilkan data klasemen
+                for (var i = 0; i < klasemen.length; i++) {
+                    var klub = klasemen[i];
+                    var row = `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${klub.nama}</td>
+                            <td>${klub.main}</td>
+                            <td>${klub.menang}</td>
+                            <td>${klub.seri}</td>
+                            <td>${klub.kalah}</td>
+                            <td>${klub.golMenang}</td>
+                            <td>${klub.golKalah}</td>
+                            <td>${klub.point}</td>
+                        </tr>
+                    `;
+                    $('#klasemen-body').append(row);
+                }
+            }
+
+            // Mendapatkan data klasemen
+            function getKlasemenData() {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+                var savedMatches = JSON.parse(localStorage.getItem('matches')) || [];
+
+                for (var i = 0; i < clubs.length; i++) {
+                    var club = clubs[i];
+                    club.main = 0;
+                    club.menang = 0;
+                    club.seri = 0;
+                    club.kalah = 0;
+                    club.golMenang = 0;
+                    club.golKalah = 0;
+                    club.point = 0;
+
+                    for (var j = 0; j < savedMatches.length; j++) {
+                        var match = savedMatches[j];
+
+                        if (match.klub1 === club.nama) {
+                            club.main++;
+                            club.golMenang += match.skor1;
+                            club.golKalah += match.skor2;
+
+                            if (match.skor1 > match.skor2) {
+                                club.menang++;
+                                club.point += 3;
+                            } else if (match.skor1 === match.skor2) {
+                                club.seri++;
+                                club.point++;
+                            } else {
+                                club.kalah++;
+                            }
+                        } else if (match.klub2 === club.nama) {
+                            club.main++;
+                            club.golMenang += match.skor2;
+                            club.golKalah += match.skor1;
+
+                            if (match.skor2 > match.skor1) {
+                                club.menang++;
+                                club.point += 3;
+                            } else if (match.skor1 === match.skor2) {
+                                club.seri++;
+                                club.point++;
+                            } else {
+                                club.kalah++;
+                            }
+                        }
+                    }
+                }
+
+                clubs.sort(function(a, b) {
+                    if (a.point !== b.point) {
+                        return b.point - a.point;
+                    } else {
+                        return b.golMenang - a.golMenang;
+                    }
+                });
+
+                return clubs;
+            }
+
+            // Mengenerate opsi klub pada form input skor
+            function generateClubOptions() {
+                var clubs = JSON.parse(localStorage.getItem('clubs')) || [];
+                var options = '';
+                for (var i = 0; i < clubs.length; i++) {
+                    options += `<option value="${clubs[i].nama}">${clubs[i].nama}</option>`;
+                }
+                return options;
+            }
+
+            // Update klasemen
+            function updateKlasemen() {
+                var klasemen = getKlasemenData();
+
+                var table = `
+                    <tr>
+                        <th>No</th>
+                        <th>Klub</th>
+                        <th>Ma</th>
+                        <th>Me</th>
+                        <th>S</th>
+                        <th>K</th>
+                        <th>GM</th>
+                        <th>GK</th>
+                        <th>Point</th>
+                    </tr>
+                `;
+
+                for (var i = 0; i < klasemen.length; i++) {
+                    var klub = klasemen[i];
+                    var row = `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${klub.nama}</td>
+                            <td>${klub.main}</td>
+                            <td>${klub.menang}</td>
+                            <td>${klub.seri}</td>
+                            <td>${klub.kalah}</td>
+                            <td>${klub.golMenang}</td>
+                            <td>${klub.golKalah}</td>
+                            <td>${klub.point}</td>
+                        </tr>
+                    `;
+                    table += row;
+                }
+
+                $('#klasemen-body').html(table);
+            }
+
+            function clearInputClub() { 
+                $('#nama').val('');
+                $('#kota').val('');
+                $('#nama').focus();
+            }
+
+            function clearInputSkor() { 
+                showInputSkorForm();
+            }
+
+            // Menampilkan menu Input Data Klub saat halaman pertama kali dimuat
+            showInputDataForm();
+
+            // Event handler untuk tombol menu Input Data Klub
+            $('#input-data').click(function() {
+                showInputDataForm();
+            });
+
+            // Event handler untuk tombol menu Input Skor Pertandingan
+            $('#input-skor').click(function() {
+                showInputSkorForm();
+            });
+
+            // Event handler untuk tombol menu View Klasemen
+            $('#view-klasemen').click(function() {
+                showKlasemen();
+            });
+        });
+    </script>
+</body>
+</html>
